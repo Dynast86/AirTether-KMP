@@ -9,6 +9,7 @@ import com.dynast.airtether.core.nikonptp.transport.PtpTransport
 import com.dynast.airtether.domain.port.PhotoStorage
 import com.dynast.airtether.viewmodel.IngestionEvent
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
@@ -113,7 +114,7 @@ class NikonPtpSessionAdapterTest {
 
         try {
             assertTrue(adapter.openSession().isSuccess)
-            val completedDeferred = async {
+            val completedDeferred = async(start = CoroutineStart.UNDISPATCHED) {
                 withTimeout(3_000) {
                     adapter.ingestionEvents.filterIsInstance<IngestionEvent.TransferCompleted>().first()
                 }
