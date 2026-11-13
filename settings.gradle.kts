@@ -1,4 +1,5 @@
 rootProject.name = "AirTether-KMP"
+enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 pluginManagement {
     repositories {
@@ -31,6 +32,9 @@ plugins {
     id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
 }
 
+include(":core:nikon-ptp")
+include(":app-director")
 include(":androidApp")
 include(":desktopApp")
 include(":shared")
+// include(":app-airtether")
