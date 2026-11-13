@@ -2,6 +2,7 @@ package com.dynast.airtether.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.dynast.airtether.domain.port.IngestService
 import com.dynast.airtether.model.ExifMetadata
 import com.dynast.airtether.model.ServerStatus
 import com.dynast.airtether.model.TetherMediaItem
@@ -41,14 +42,15 @@ sealed interface IngestionEvent {
     data class TransferCompleted(
         val itemId: String,
         val localUri: String,
-        val exifMetadata: ExifMetadata
+        val exifMetadata: ExifMetadata? = null
     ) : IngestionEvent
     data class TransferFailed(val itemId: String, val reason: String) : IngestionEvent
 }
 
 class TetheringViewModel(
     autoSimulateInitialTransfer: Boolean = true,
-    coroutineScope: CoroutineScope? = null
+    coroutineScope: CoroutineScope? = null,
+    private val ingestService: IngestService? = null
 ) : ViewModel() {
 
     private val scope: CoroutineScope = coroutineScope ?: runCatching {
@@ -67,6 +69,7 @@ class TetheringViewModel(
 
     init {
         observeIngestionPipeline()
+        observeExternalIngestService()
         if (autoSimulateInitialTransfer) {
             simulateInitialActiveTransfer()
         }
@@ -85,24 +88,44 @@ class TetheringViewModel(
         }
     }
 
+    private fun observeExternalIngestService() {
+        val service = ingestService ?: return
+        scope.launch {
+            service.serverStatus.collect { status ->
+                _uiState.update { it.copy(serverStatus = status) }
+            }
+        }
+        scope.launch {
+            service.events.collect { event ->
+                handleIngestionEvent(event)
+            }
+        }
+    }
+
     private fun observeIngestionPipeline() {
         scope.launch {
             ingestionEvents.collect { event ->
-                when (event) {
-                    is IngestionEvent.TransferStarted -> {
-                        _uiState.update { state ->
-                            val updatedItems = listOf(event.item) + state.items
-                            val nextSelectedId = if (state.isLiveFollowEnabled) {
-                                event.item.id
-                            } else {
-                                state.selectedItemId ?: event.item.id
-                            }
-                            state.copy(
-                                items = updatedItems,
-                                selectedItemId = nextSelectedId
-                            )
-                        }
+                handleIngestionEvent(event)
+            }
+        }
+    }
+
+    private fun handleIngestionEvent(event: IngestionEvent) {
+        when (event) {
+            is IngestionEvent.TransferStarted -> {
+                _uiState.update { state ->
+                    val updatedItems = listOf(event.item) + state.items
+                    val nextSelectedId = if (state.isLiveFollowEnabled) {
+                        event.item.id
+                    } else {
+                        state.selectedItemId ?: event.item.id
                     }
+                    state.copy(
+                        items = updatedItems,
+                        selectedItemId = nextSelectedId
+                    )
+                }
+            }
 
                     is IngestionEvent.TransferProgress -> {
                         _uiState.update { state ->
@@ -156,8 +179,6 @@ class TetheringViewModel(
                             )
                         }
                     }
-                }
-            }
         }
     }
 
@@ -221,6 +242,16 @@ class TetheringViewModel(
     }
 
     private fun handleToggleServerStatus() {
+        val service = ingestService
+        if (service != null) {
+            scope.launch {
+                when (_uiState.value.serverStatus) {
+                    is ServerStatus.Running, ServerStatus.Starting -> service.stopFtpServer()
+                    else -> service.startFtpServer(2121)
+                }
+            }
+            return
+        }
         _uiState.update { state ->
             val nextStatus = when (state.serverStatus) {
                 is ServerStatus.Running -> ServerStatus.Stopped

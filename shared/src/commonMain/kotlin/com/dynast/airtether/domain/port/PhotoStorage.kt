@@ -13,3 +13,5 @@ interface PhotoStorage {
     suspend fun abortPendingFile(pendingHandle: String)
     suspend fun savePreviewJpeg(photoId: String, jpegBytes: ByteArray): String
 }
+
+expect fun createPlatformPhotoStorage(sessionName: String = "AirTether"): PhotoStorage
