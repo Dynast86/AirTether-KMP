@@ -4,5 +4,11 @@
 <dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>AirTether saves incoming tethered camera photos to your Photo Library.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>AirTether exports tethered camera captures to your Photo Library.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>AirTether listens on your local Wi-Fi network (FTP Port 2121) to receive photos directly from your camera.</string>
 </dict>
 </plist>
