@@ -21,5 +21,12 @@ actual suspend fun loadImageBitmapFromUri(uri: String): ImageBitmap? {
     }.getOrNull()
 }
 
+actual fun decodeImageBitmap(bytes: ByteArray): ImageBitmap? {
+    if (bytes.isEmpty()) return null
+    return runCatching {
+        Image.makeFromEncoded(bytes).toComposeImageBitmap()
+    }.getOrNull()
+}
+
 actual fun resolveLocalIpAddress(): String =
     IosNetworkIpBridge.resolveLocalIp?.invoke()?.takeIf { it.isNotBlank() } ?: "127.0.0.1"

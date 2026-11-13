@@ -58,6 +58,8 @@ fun FilmstripPanel(
     selectedItemId: String?,
     completedCount: Int,
     transferringCount: Int,
+    minRatingFilter: Int,
+    onSetRatingFilter: (Int) -> Unit,
     onSelectItem: (String) -> Unit,
     onUpdateRating: (String, Int) -> Unit,
     onRetryTransfer: (String) -> Unit,
@@ -106,29 +108,130 @@ fun FilmstripPanel(
                 }
             }
 
-            // LazyColumn Filmstrip List
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                contentPadding = PaddingValues(10.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(
-                    items = items,
-                    key = { it.id }
-                ) { item ->
-                    val isSelected = item.id == selectedItemId
-                    val isLatest = items.firstOrNull()?.id == item.id
-                    FilmstripItemCard(
-                        item = item,
-                        isSelected = isSelected,
-                        isLatest = isLatest,
-                        onClick = { onSelectItem(item.id) },
-                        onRatingSelect = { star -> onUpdateRating(item.id, star) },
-                        onRetry = { onRetryTransfer(item.id) }
-                    )
+            // Star Rating Filter Bar
+            RatingFilterBar(
+                minRatingFilter = minRatingFilter,
+                onSelectFilter = onSetRatingFilter
+            )
+
+            // LazyColumn Filmstrip List or Empty State
+            if (items.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = if (minRatingFilter > 0) {
+                                "No photos with ★$minRatingFilter+ rating"
+                            } else {
+                                "No photos in queue"
+                            },
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = StudioTextSecondary
+                        )
+                        if (minRatingFilter > 0) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(StudioPrimary.copy(alpha = 0.16f))
+                                    .border(1.dp, StudioPrimary.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
+                                    .clickable { onSetRatingFilter(0) }
+                                    .padding(horizontal = 10.dp, vertical = 5.dp)
+                            ) {
+                                Text(
+                                    text = "Show All",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = StudioPrimary
+                                )
+                            }
+                        }
+                    }
                 }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    contentPadding = PaddingValues(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(
+                        items = items,
+                        key = { it.id }
+                    ) { item ->
+                        val isSelected = item.id == selectedItemId
+                        val isLatest = items.firstOrNull()?.id == item.id
+                        FilmstripItemCard(
+                            item = item,
+                            isSelected = isSelected,
+                            isLatest = isLatest,
+                            onClick = { onSelectItem(item.id) },
+                            onRatingSelect = { star -> onUpdateRating(item.id, star) },
+                            onRetry = { onRetryTransfer(item.id) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RatingFilterBar(
+    minRatingFilter: Int,
+    onSelectFilter: (Int) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(StudioBackground.copy(alpha = 0.5f))
+            .border(width = 1.dp, color = StudioBorder)
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        val options = listOf(0, 1, 2, 3, 4, 5)
+        options.forEach { rating ->
+            val isSelected = minRatingFilter == rating
+            val accentColor = if (rating == 0) StudioPrimary else StudioWarning
+            val bgColor = if (isSelected) accentColor.copy(alpha = 0.18f) else StudioSurfaceVariant
+            val borderColor = if (isSelected) accentColor.copy(alpha = 0.6f) else StudioBorder
+            val textColor = if (isSelected) accentColor else StudioTextSecondary
+            val label = when (rating) {
+                0 -> "ALL"
+                5 -> "★5"
+                else -> "★$rating+"
+            }
+
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(5.dp))
+                    .background(bgColor)
+                    .border(1.dp, borderColor, RoundedCornerShape(5.dp))
+                    .clickable {
+                        val next = if (isSelected && rating != 0) 0 else rating
+                        onSelectFilter(next)
+                    }
+                    .padding(vertical = 4.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = label,
+                    fontSize = 10.sp,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                    color = textColor,
+                    maxLines = 1
+                )
             }
         }
     }

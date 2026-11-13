@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.dynast.airtether.domain.port.CullingRepository
 import com.dynast.airtether.domain.port.IngestService
 import com.dynast.airtether.domain.port.PhotoStorage
+import com.dynast.airtether.domain.port.PtpSessionManager
 import com.dynast.airtether.domain.port.RawPreviewExtractor
 import com.dynast.airtether.ingest.FtpHostController
 import com.dynast.airtether.model.ExifMetadata
@@ -16,6 +17,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -39,6 +41,9 @@ sealed interface TetheringIntent {
     data object SimulateIncomingPhoto : TetheringIntent
     data class RetryTransfer(val itemId: String) : TetheringIntent
     data object ToggleServerStatus : TetheringIntent
+    data object TogglePtpSession : TetheringIntent
+    data object ToggleLiveView : TetheringIntent
+    data object TriggerPtpShutter : TetheringIntent
 }
 
 /**
@@ -64,6 +69,8 @@ class TetheringViewModel(
     private val photoStorage: PhotoStorage? = null,
     private val cullingRepository: CullingRepository? = null,
     private val ftpHostController: FtpHostController? = null,
+    private val ptpSessionManager: PtpSessionManager? = null,
+    private val ptpIngestionEvents: Flow<IngestionEvent>? = null,
 ) : ViewModel() {
 
     private val scope: CoroutineScope = coroutineScope ?: runCatching {
@@ -84,6 +91,7 @@ class TetheringViewModel(
         restorePersistedItems()
         observeIngestionPipeline()
         observeExternalIngestService()
+        observePtpSession()
         if (autoSimulateInitialTransfer) {
             simulateInitialActiveTransfer()
         }
@@ -106,7 +114,9 @@ class TetheringViewModel(
                 }
             }
             TetheringIntent.ClearMockItems -> _uiState.update { state ->
-                val realOnly = state.items.filterNot { it.id.startsWith("mock-") }
+                val realOnly = state.items.filterNot {
+                    it.id.startsWith("mock-") || it.id.startsWith("item_")
+                }
                 state.copy(
                     items = realOnly,
                     selectedItemId = realOnly.firstOrNull()?.id,
@@ -115,6 +125,88 @@ class TetheringViewModel(
             TetheringIntent.SimulateIncomingPhoto -> simulateIncomingPhoto()
             is TetheringIntent.RetryTransfer -> retryTransfer(intent.itemId)
             TetheringIntent.ToggleServerStatus -> handleToggleServerStatus()
+            TetheringIntent.TogglePtpSession -> handleTogglePtpSession()
+            TetheringIntent.ToggleLiveView -> handleToggleLiveView()
+            TetheringIntent.TriggerPtpShutter -> handleTriggerPtpShutter()
+        }
+    }
+
+    private fun observePtpSession() {
+        ptpIngestionEvents?.let { events ->
+            scope.launch {
+                events.collect { event ->
+                    handleIngestionEvent(event)
+                }
+            }
+        }
+        val ptp = ptpSessionManager ?: return
+        scope.launch {
+            ptp.isConnected.collect { connected ->
+                _uiState.update { state ->
+                    state.copy(
+                        isPtpConnected = connected,
+                        liveViewFrame = if (connected) state.liveViewFrame else null,
+                    )
+                }
+            }
+        }
+        scope.launch {
+            ptp.isLiveViewActive.collect { active ->
+                _uiState.update { state ->
+                    state.copy(
+                        isLiveViewActive = active,
+                        liveViewFrame = if (active) state.liveViewFrame else null,
+                    )
+                }
+            }
+        }
+        scope.launch {
+            ptp.observeLiveViewFrames().collect { frame ->
+                _uiState.update { state ->
+                    if (state.isLiveViewActive) {
+                        state.copy(liveViewFrame = frame)
+                    } else {
+                        state
+                    }
+                }
+            }
+        }
+    }
+
+    private fun handleTogglePtpSession() {
+        val ptp = ptpSessionManager ?: return
+        scope.launch {
+            if (ptp.isConnected.value) {
+                ptp.closeSession()
+            } else {
+                ptp.openSession()
+            }
+        }
+    }
+
+    private fun handleToggleLiveView() {
+        val ptp = ptpSessionManager ?: return
+        scope.launch {
+            if (ptp.isLiveViewActive.value) {
+                ptp.stopLiveView()
+            } else {
+                if (!ptp.isConnected.value) {
+                    val opened = ptp.openSession()
+                    if (opened.isFailure) return@launch
+                }
+                ptp.startLiveView()
+            }
+        }
+    }
+
+    private fun handleTriggerPtpShutter() {
+        val ptp = ptpSessionManager ?: return
+        scope.launch {
+            if (!ptp.isConnected.value) {
+                val opened = ptp.openSession()
+                if (opened.isFailure) return@launch
+            }
+            ptp.triggerShutter()
         }
     }
 

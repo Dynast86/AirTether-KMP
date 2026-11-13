@@ -20,6 +20,8 @@ fun App() {
                 photoStorage = AirTetherRuntime.photoStorage,
                 cullingRepository = AirTetherRuntime.cullingRepository,
                 ftpHostController = AirTetherRuntime.ftpHostController,
+                ptpSessionManager = AirTetherRuntime.ptpSessionAdapter,
+                ptpIngestionEvents = AirTetherRuntime.ptpSessionAdapter.ingestionEvents,
             )
         }
         TetheringScreen(viewModel = vm)

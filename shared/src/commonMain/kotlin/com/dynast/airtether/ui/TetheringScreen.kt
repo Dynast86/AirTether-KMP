@@ -57,10 +57,18 @@ fun TetheringScreenContent(
             isLiveFollowEnabled = uiState.isLiveFollowEnabled,
             isExifOverlayVisible = uiState.isExifOverlayVisible,
             totalCount = uiState.items.size,
+            hasMockItems = uiState.hasMockItems,
+            isPtpConnected = uiState.isPtpConnected,
+            isLiveViewActive = uiState.isLiveViewActive,
             onToggleLiveFollow = { onIntent(TetheringIntent.ToggleLiveFollow) },
             onToggleExifOverlay = { onIntent(TetheringIntent.ToggleExifOverlay) },
             onSimulateIncomingPhoto = { onIntent(TetheringIntent.SimulateIncomingPhoto) },
-            onToggleServerStatus = { onIntent(TetheringIntent.ToggleServerStatus) }
+            onToggleServerStatus = { onIntent(TetheringIntent.ToggleServerStatus) },
+            onUpdateSessionName = { name -> onIntent(TetheringIntent.UpdateSessionName(name)) },
+            onClearMockItems = { onIntent(TetheringIntent.ClearMockItems) },
+            onTogglePtpSession = { onIntent(TetheringIntent.TogglePtpSession) },
+            onToggleLiveView = { onIntent(TetheringIntent.ToggleLiveView) },
+            onTriggerShutter = { onIntent(TetheringIntent.TriggerPtpShutter) }
         )
 
         // 2-Panel Landscape Split Layout (Left 28% Filmstrip : Right 72% Main Viewer)
@@ -74,6 +82,10 @@ fun TetheringScreenContent(
                 selectedItemId = uiState.selectedItem?.id,
                 completedCount = uiState.completedCount,
                 transferringCount = uiState.transferringCount,
+                minRatingFilter = uiState.minRatingFilter,
+                onSetRatingFilter = { minRating ->
+                    onIntent(TetheringIntent.SetRatingFilter(minRating))
+                },
                 onSelectItem = { itemId ->
                     onIntent(TetheringIntent.SelectItem(itemId = itemId, isUserGesture = true))
                 },
@@ -99,6 +111,8 @@ fun TetheringScreenContent(
                 selectedItem = uiState.selectedItem,
                 isExifOverlayVisible = uiState.isExifOverlayVisible,
                 isLiveFollowEnabled = uiState.isLiveFollowEnabled,
+                isLiveViewActive = uiState.isLiveViewActive,
+                liveViewFrame = uiState.liveViewFrame,
                 onUserGesture = {
                     onIntent(TetheringIntent.PauseLiveFollowOnGesture)
                 },

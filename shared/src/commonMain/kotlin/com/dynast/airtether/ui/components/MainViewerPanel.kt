@@ -55,6 +55,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.dynast.airtether.domain.port.LiveViewFramePacket
 import com.dynast.airtether.model.ExifMetadata
 import com.dynast.airtether.model.TetherMediaItem
 import com.dynast.airtether.model.TransferStatus
@@ -68,6 +69,7 @@ import com.dynast.airtether.ui.theme.StudioSurfaceVariant
 import com.dynast.airtether.ui.theme.StudioTextPrimary
 import com.dynast.airtether.ui.theme.StudioTextSecondary
 import com.dynast.airtether.ui.theme.StudioWarning
+import com.dynast.airtether.ui.util.decodeImageBitmap
 import kotlin.math.roundToInt
 
 @Composable
@@ -75,6 +77,8 @@ fun MainViewerPanel(
     selectedItem: TetherMediaItem?,
     isExifOverlayVisible: Boolean,
     isLiveFollowEnabled: Boolean,
+    isLiveViewActive: Boolean,
+    liveViewFrame: LiveViewFramePacket?,
     onUserGesture: () -> Unit,
     onUpdateRating: (String, Int) -> Unit,
     onRetryTransfer: (String) -> Unit,
@@ -95,7 +99,12 @@ fun MainViewerPanel(
             .background(StudioBackground)
             .clipToBounds()
     ) {
-        if (selectedItem == null) {
+        if (isLiveViewActive) {
+            LiveViewViewport(
+                frame = liveViewFrame,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else if (selectedItem == null) {
             EmptyViewerPlaceholder(modifier = Modifier.fillMaxSize())
         } else {
             // Interactive Zoomable & Pannable Image Viewport
@@ -611,6 +620,86 @@ private fun EmptyViewerPlaceholder(
                 text = "Release the camera shutter or click '+ Simulate FTP Shot' in the top bar.",
                 fontSize = 12.sp,
                 color = StudioTextSecondary
+            )
+        }
+    }
+}
+
+@Composable
+private fun LiveViewViewport(
+    frame: LiveViewFramePacket?,
+    modifier: Modifier = Modifier
+) {
+    val bitmap = remember(frame?.jpegBytes) {
+        frame?.jpegBytes?.let { decodeImageBitmap(it) }
+    }
+
+    Box(
+        modifier = modifier
+            .background(Color.Black),
+        contentAlignment = Alignment.Center
+    ) {
+        if (bitmap != null) {
+            Image(
+                bitmap = bitmap,
+                contentDescription = "Nikon PTP LiveView",
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(12.dp)
+                        .clip(CircleShape)
+                        .background(StudioDanger)
+                )
+                Text(
+                    text = "Starting Nikon PTP LiveView stream...",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = StudioTextPrimary
+                )
+                Text(
+                    text = "Waiting for GetLiveViewImage (0x9203) JPEG frames.",
+                    fontSize = 12.sp,
+                    color = StudioTextSecondary
+                )
+            }
+        }
+
+        // Top-left LiveView HUD Badge
+        Row(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(16.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(StudioSurface.copy(alpha = 0.85f))
+                .border(1.dp, StudioDanger.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(StudioDanger)
+            )
+            val resLabel = if (frame != null && frame.width > 0 && frame.height > 0) {
+                "LIVE VIEW • ${frame.width}×${frame.height}"
+            } else {
+                "LIVE VIEW"
+            }
+            Text(
+                text = resLabel,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = FontFamily.Monospace,
+                color = StudioTextPrimary
             )
         }
     }

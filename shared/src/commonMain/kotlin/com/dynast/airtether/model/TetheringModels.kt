@@ -94,7 +94,10 @@ data class TetheringUiState(
     val selectedItemId: String? = null,
     val isExifOverlayVisible: Boolean = true,
     val sessionName: String = "Studio_Portrait_S01",
-    val minRatingFilter: Int = 0
+    val minRatingFilter: Int = 0,
+    val isPtpConnected: Boolean = false,
+    val isLiveViewActive: Boolean = false,
+    val liveViewFrame: com.dynast.airtether.domain.port.LiveViewFramePacket? = null
 ) {
     val visibleItems: List<TetherMediaItem>
         get() = if (minRatingFilter <= 0) items else items.filter { it.rating >= minRatingFilter }
@@ -107,4 +110,7 @@ data class TetheringUiState(
 
     val transferringCount: Int
         get() = items.count { it.transferStatus is TransferStatus.Transferring }
+
+    val hasMockItems: Boolean
+        get() = items.any { it.id.startsWith("mock-") || it.id.startsWith("item_") }
 }

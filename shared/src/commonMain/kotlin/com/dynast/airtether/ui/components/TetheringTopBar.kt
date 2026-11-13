@@ -13,12 +13,20 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,12 +52,73 @@ fun TetheringTopBar(
     isLiveFollowEnabled: Boolean,
     isExifOverlayVisible: Boolean,
     totalCount: Int,
+    hasMockItems: Boolean,
+    isPtpConnected: Boolean,
+    isLiveViewActive: Boolean,
     onToggleLiveFollow: () -> Unit,
     onToggleExifOverlay: () -> Unit,
     onSimulateIncomingPhoto: () -> Unit,
     onToggleServerStatus: () -> Unit,
+    onUpdateSessionName: (String) -> Unit,
+    onClearMockItems: () -> Unit,
+    onTogglePtpSession: () -> Unit,
+    onToggleLiveView: () -> Unit,
+    onTriggerShutter: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var isEditingSessionName by remember { mutableStateOf(false) }
+    var draftSessionName by remember(sessionName) { mutableStateOf(sessionName) }
+
+    if (isEditingSessionName) {
+        AlertDialog(
+            onDismissRequest = { isEditingSessionName = false },
+            containerColor = StudioSurface,
+            titleContentColor = StudioTextPrimary,
+            textContentColor = StudioTextSecondary,
+            title = {
+                Text(
+                    text = "Rename Session",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                OutlinedTextField(
+                    value = draftSessionName,
+                    onValueChange = { draftSessionName = it },
+                    singleLine = true,
+                    label = { Text("Session Name") },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = StudioTextPrimary,
+                        unfocusedTextColor = StudioTextPrimary,
+                        focusedBorderColor = StudioPrimary,
+                        unfocusedBorderColor = StudioBorder,
+                        focusedLabelColor = StudioPrimary,
+                        unfocusedLabelColor = StudioTextSecondary,
+                        cursorColor = StudioPrimary
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = draftSessionName.trim().isNotEmpty(),
+                    onClick = {
+                        onUpdateSessionName(draftSessionName)
+                        isEditingSessionName = false
+                    }
+                ) {
+                    Text("Save", color = StudioPrimary, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { isEditingSessionName = false }) {
+                    Text("Cancel", color = StudioTextSecondary)
+                }
+            }
+        )
+    }
+
     Surface(
         color = StudioSurface,
         modifier = modifier
@@ -100,6 +169,11 @@ fun TetheringTopBar(
                     modifier = Modifier
                         .clip(RoundedCornerShape(6.dp))
                         .background(StudioSurfaceVariant)
+                        .border(1.dp, StudioBorder, RoundedCornerShape(6.dp))
+                        .clickable {
+                            draftSessionName = sessionName
+                            isEditingSessionName = true
+                        }
                         .padding(horizontal = 10.dp, vertical = 5.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -123,19 +197,72 @@ fun TetheringTopBar(
                         color = StudioPrimary,
                         fontWeight = FontWeight.SemiBold
                     )
+                    Text(
+                        text = "✎",
+                        fontSize = 11.sp,
+                        color = StudioTextSecondary
+                    )
                 }
 
                 FtpServerStatusBadge(
                     serverStatus = serverStatus,
                     onClick = onToggleServerStatus
                 )
+
+                PtpStatusChip(
+                    isConnected = isPtpConnected,
+                    onClick = onTogglePtpSession
+                )
             }
 
-            // Right: Simulate Shot Button, Live Follow Toggle Chip, EXIF HUD Toggle
+            // Right: Clear Sample, LiveView, Shutter, Simulate Shot, Live Follow, EXIF HUD
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                if (hasMockItems) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(StudioSurfaceVariant)
+                            .border(1.dp, StudioBorder, RoundedCornerShape(8.dp))
+                            .clickable(onClick = onClearMockItems)
+                            .padding(horizontal = 10.dp, vertical = 7.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Clear Sample",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = StudioTextSecondary
+                        )
+                    }
+                }
+
+                LiveViewToggleChip(
+                    isActive = isLiveViewActive,
+                    onClick = onToggleLiveView
+                )
+
+                if (isPtpConnected) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(StudioWarning.copy(alpha = 0.16f))
+                            .border(1.dp, StudioWarning.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
+                            .clickable(onClick = onTriggerShutter)
+                            .padding(horizontal = 10.dp, vertical = 7.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "SHUTTER",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = StudioWarning
+                        )
+                    }
+                }
+
                 FilledTonalButton(
                     onClick = onSimulateIncomingPhoto,
                     shape = RoundedCornerShape(8.dp),
@@ -163,6 +290,75 @@ fun TetheringTopBar(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun PtpStatusChip(
+    isConnected: Boolean,
+    onClick: () -> Unit
+) {
+    val dotColor = if (isConnected) StudioSecondary else StudioTextSecondary
+    val borderColor = if (isConnected) StudioSecondary.copy(alpha = 0.5f) else StudioBorder
+    val label = if (isConnected) "PTP: ON" else "PTP: OFF"
+
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(StudioSurfaceVariant)
+            .border(1.dp, borderColor, RoundedCornerShape(50))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(7.dp)
+                .clip(CircleShape)
+                .background(dotColor)
+        )
+        Text(
+            text = label,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = FontFamily.Monospace,
+            color = StudioTextPrimary
+        )
+    }
+}
+
+@Composable
+private fun LiveViewToggleChip(
+    isActive: Boolean,
+    onClick: () -> Unit
+) {
+    val containerColor = if (isActive) StudioDanger.copy(alpha = 0.18f) else StudioSurfaceVariant
+    val borderColor = if (isActive) StudioDanger.copy(alpha = 0.65f) else StudioBorder
+    val contentColor = if (isActive) StudioDanger else StudioTextSecondary
+
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(containerColor)
+            .border(1.dp, borderColor, RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(7.dp)
+                .clip(CircleShape)
+                .background(contentColor)
+        )
+        Text(
+            text = if (isActive) "LIVE VIEW: ON" else "LIVE VIEW",
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = contentColor
+        )
     }
 }
 

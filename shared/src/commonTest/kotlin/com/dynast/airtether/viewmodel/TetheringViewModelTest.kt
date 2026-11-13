@@ -130,4 +130,80 @@ class TetheringViewModelTest {
         viewModel.onIntent(TetheringIntent.SetRatingFilter(0))
         assertEquals(viewModel.uiState.value.items.size, viewModel.uiState.value.visibleItems.size)
     }
+
+    @Test
+    fun clearMockItemsRemovesInitialAndSimulatedMockItems() {
+        val viewModel = createTestViewModel()
+        assertTrue(viewModel.uiState.value.hasMockItems)
+
+        viewModel.onIntent(TetheringIntent.SimulateIncomingPhoto)
+        assertTrue(viewModel.uiState.value.items.isNotEmpty())
+
+        viewModel.onIntent(TetheringIntent.ClearMockItems)
+        assertTrue(viewModel.uiState.value.items.isEmpty())
+        assertFalse(viewModel.uiState.value.hasMockItems)
+    }
+
+    @Test
+    fun ptpSessionLiveViewAndShutterIntentsUpdateState() {
+        val fakePtp = FakePtpSessionManager()
+        val viewModel = TetheringViewModel(
+            autoSimulateInitialTransfer = false,
+            coroutineScope = CoroutineScope(Dispatchers.Unconfined),
+            ptpSessionManager = fakePtp,
+        )
+
+        assertFalse(viewModel.uiState.value.isPtpConnected)
+        assertFalse(viewModel.uiState.value.isLiveViewActive)
+
+        viewModel.onIntent(TetheringIntent.ToggleLiveView)
+        assertTrue(viewModel.uiState.value.isPtpConnected)
+        assertTrue(viewModel.uiState.value.isLiveViewActive)
+
+        viewModel.onIntent(TetheringIntent.TriggerPtpShutter)
+        assertEquals(1, fakePtp.shutterCount)
+
+        viewModel.onIntent(TetheringIntent.ToggleLiveView)
+        assertFalse(viewModel.uiState.value.isLiveViewActive)
+
+        viewModel.onIntent(TetheringIntent.TogglePtpSession)
+        assertFalse(viewModel.uiState.value.isPtpConnected)
+    }
+}
+
+private class FakePtpSessionManager : com.dynast.airtether.domain.port.PtpSessionManager {
+    private val _isConnected = kotlinx.coroutines.flow.MutableStateFlow(false)
+    override val isConnected = _isConnected
+
+    private val _isLiveViewActive = kotlinx.coroutines.flow.MutableStateFlow(false)
+    override val isLiveViewActive = _isLiveViewActive
+
+    private val frames = kotlinx.coroutines.flow.MutableSharedFlow<com.dynast.airtether.domain.port.LiveViewFramePacket>()
+    var shutterCount = 0
+
+    override suspend fun openSession(): Result<Unit> {
+        _isConnected.value = true
+        return Result.success(Unit)
+    }
+
+    override suspend fun closeSession() {
+        _isLiveViewActive.value = false
+        _isConnected.value = false
+    }
+
+    override fun observeLiveViewFrames() = frames
+
+    override suspend fun startLiveView(): Result<Unit> {
+        _isLiveViewActive.value = true
+        return Result.success(Unit)
+    }
+
+    override suspend fun stopLiveView() {
+        _isLiveViewActive.value = false
+    }
+
+    override suspend fun triggerShutter(): Result<Unit> {
+        shutterCount++
+        return Result.success(Unit)
+    }
 }

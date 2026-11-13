@@ -28,6 +28,13 @@ actual suspend fun loadImageBitmapFromUri(uri: String): ImageBitmap? = withConte
     }.getOrNull()
 }
 
+actual fun decodeImageBitmap(bytes: ByteArray): ImageBitmap? {
+    if (bytes.isEmpty()) return null
+    return runCatching {
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+    }.getOrNull()
+}
+
 actual fun resolveLocalIpAddress(): String {
     return runCatching {
         NetworkInterface.getNetworkInterfaces()?.toList()

@@ -11,11 +11,17 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import com.dynast.airtether.domain.port.AndroidStorageContextHolder
+import com.dynast.airtether.ingest.AirTetherRuntime
 import com.dynast.airtether.ingest.AndroidFtpServiceBridge
 import com.dynast.airtether.service.AirTetherFtpService
+import com.dynast.airtether.usb.AndroidUsbPtpMonitor
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+
+    private var usbPtpMonitor: AndroidUsbPtpMonitor? = null
 
     private val notificationPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { _ -> }
@@ -33,11 +39,34 @@ class MainActivity : ComponentActivity() {
             AirTetherFtpService.stop(appCtx)
         }
 
+        usbPtpMonitor = AndroidUsbPtpMonitor(
+            context = appCtx,
+            onUsbTransportReady = { usbTransport, _ ->
+                lifecycleScope.launch {
+                    AirTetherRuntime.attachUsbPtpTransport(
+                        transport = usbTransport,
+                        autoStartLiveView = false,
+                    )
+                }
+            },
+            onUsbDeviceDetached = {
+                lifecycleScope.launch {
+                    AirTetherRuntime.detachUsbPtpTransport()
+                }
+            },
+        ).also { it.startMonitoring() }
+
         requestNotificationPermissionIfNeeded()
 
         setContent {
             App()
         }
+    }
+
+    override fun onDestroy() {
+        usbPtpMonitor?.stopMonitoring()
+        usbPtpMonitor = null
+        super.onDestroy()
     }
 
     private fun requestNotificationPermissionIfNeeded() {
