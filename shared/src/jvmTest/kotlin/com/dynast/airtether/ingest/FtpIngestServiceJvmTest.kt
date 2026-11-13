@@ -13,8 +13,11 @@ import io.ktor.network.sockets.openWriteChannel
 import io.ktor.utils.io.readUTF8Line
 import io.ktor.utils.io.writeFully
 import io.ktor.utils.io.writeStringUtf8
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -29,77 +32,86 @@ class FtpIngestServiceJvmTest {
 
     @Test
     fun ftpStorSavesFileAndEmitsCompletedEventToViewModel() = runBlocking {
-        val tempDir = Files.createTempDirectory("airtether-ftp-test").toFile()
-        val storage = JvmPhotoStorage(tempDir)
-        val service = FtpIngestService(
-            photoStorage = storage,
-            bindHost = "127.0.0.1",
-            advertisedHost = "127.0.0.1",
-        )
-        val viewModel = TetheringViewModel(
-            autoSimulateInitialTransfer = false,
-            coroutineScope = this,
-            ingestService = service,
-        )
+        withTimeout(15_000) {
+            val tempDir = Files.createTempDirectory("airtether-ftp-test").toFile()
+            val storage = JvmPhotoStorage(tempDir)
+            val service = FtpIngestService(
+                photoStorage = storage,
+                bindHost = "127.0.0.1",
+                advertisedHost = "127.0.0.1",
+            )
+            val vmScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            val viewModel = TetheringViewModel(
+                autoSimulateInitialTransfer = false,
+                coroutineScope = vmScope,
+                ingestService = service,
+            )
 
-        try {
-            service.startFtpServer(port = 0)
-            val port = requireNotNull(service.boundPort)
-            assertTrue(service.serverStatus.value is ServerStatus.Running)
+            try {
+                service.startFtpServer(port = 0)
+                val port = requireNotNull(service.boundPort)
+                assertTrue(service.serverStatus.value is ServerStatus.Running)
 
-            val completedDeferred = async {
-                withTimeout(5_000) {
-                    service.events.filterIsInstance<IngestionEvent.TransferCompleted>().first()
+                val completedDeferred = async {
+                    withTimeout(5_000) {
+                        service.events.filterIsInstance<IngestionEvent.TransferCompleted>().first()
+                    }
                 }
+
+                val payload = "FAKE_RAW_OR_JPEG_PAYLOAD_1234567890".encodeToByteArray()
+                val selector = SelectorManager(Dispatchers.IO)
+                val control = aSocket(selector).tcp().connect(InetSocketAddress("127.0.0.1", port))
+                val reader = control.openReadChannel()
+                val writer = control.openWriteChannel(autoFlush = true)
+
+                assertTrue(reader.readUTF8Line()!!.startsWith("220"))
+                writer.writeStringUtf8("USER camera\r\n")
+                assertTrue(reader.readUTF8Line()!!.startsWith("331"))
+                writer.writeStringUtf8("PASS \r\n")
+                assertTrue(reader.readUTF8Line()!!.startsWith("230"))
+                writer.writeStringUtf8("TYPE I\r\n")
+                assertTrue(reader.readUTF8Line()!!.startsWith("200"))
+                writer.writeStringUtf8("PASV\r\n")
+                val pasvLine = reader.readUTF8Line()!!
+                assertTrue(pasvLine.startsWith("227"))
+
+                val tuple = pasvLine.substringAfter('(').substringBefore(')').split(',').map { it.toInt() }
+                val dataPort = tuple[4] * 256 + tuple[5]
+                val dataSocket = aSocket(selector).tcp().connect(InetSocketAddress("127.0.0.1", dataPort))
+
+                writer.writeStringUtf8("STOR DSC_0001.NEF\r\n")
+                assertTrue(reader.readUTF8Line()!!.startsWith("150"))
+
+                val dataWriter = dataSocket.openWriteChannel(autoFlush = true)
+                dataWriter.writeFully(payload)
+                dataWriter.flushAndClose()
+                dataSocket.close()
+
+                assertTrue(reader.readUTF8Line()!!.startsWith("226"))
+                writer.writeStringUtf8("QUIT\r\n")
+                assertTrue(reader.readUTF8Line()!!.startsWith("221"))
+
+                control.close()
+                selector.close()
+
+                val completed = completedDeferred.await()
+                val savedFile = File(completed.localUri)
+                assertTrue(savedFile.exists())
+                assertEquals("DSC_0001.NEF", savedFile.name)
+                assertEquals(payload.decodeToString(), savedFile.readBytes().decodeToString())
+
+                val updatedState = withTimeout(3_000) {
+                    viewModel.uiState.first { state ->
+                        state.items.any { it.id == completed.itemId && it.transferStatus == TransferStatus.Completed }
+                    }
+                }
+                val topItem = updatedState.items.first { it.id == completed.itemId }
+                assertEquals(TransferStatus.Completed, topItem.transferStatus)
+            } finally {
+                vmScope.cancel()
+                service.stopFtpServer()
+                tempDir.deleteRecursively()
             }
-
-            val payload = "FAKE_RAW_OR_JPEG_PAYLOAD_1234567890".encodeToByteArray()
-            val selector = SelectorManager(Dispatchers.IO)
-            val control = aSocket(selector).tcp().connect(InetSocketAddress("127.0.0.1", port))
-            val reader = control.openReadChannel()
-            val writer = control.openWriteChannel(autoFlush = true)
-
-            assertTrue(reader.readUTF8Line()!!.startsWith("220"))
-            writer.writeStringUtf8("USER camera\r\n")
-            assertTrue(reader.readUTF8Line()!!.startsWith("331"))
-            writer.writeStringUtf8("PASS \r\n")
-            assertTrue(reader.readUTF8Line()!!.startsWith("230"))
-            writer.writeStringUtf8("TYPE I\r\n")
-            assertTrue(reader.readUTF8Line()!!.startsWith("200"))
-            writer.writeStringUtf8("PASV\r\n")
-            val pasvLine = reader.readUTF8Line()!!
-            assertTrue(pasvLine.startsWith("227"))
-
-            val tuple = pasvLine.substringAfter('(').substringBefore(')').split(',').map { it.toInt() }
-            val dataPort = tuple[4] * 256 + tuple[5]
-            val dataSocket = aSocket(selector).tcp().connect(InetSocketAddress("127.0.0.1", dataPort))
-
-            writer.writeStringUtf8("STOR DSC_0001.NEF\r\n")
-            assertTrue(reader.readUTF8Line()!!.startsWith("150"))
-
-            val dataWriter = dataSocket.openWriteChannel(autoFlush = true)
-            dataWriter.writeFully(payload)
-            dataWriter.flushAndClose()
-            dataSocket.close()
-
-            assertTrue(reader.readUTF8Line()!!.startsWith("226"))
-            writer.writeStringUtf8("QUIT\r\n")
-            assertTrue(reader.readUTF8Line()!!.startsWith("221"))
-
-            control.close()
-            selector.close()
-
-            val completed = completedDeferred.await()
-            val savedFile = File(completed.localUri)
-            assertTrue(savedFile.exists())
-            assertEquals("DSC_0001.NEF", savedFile.name)
-            assertEquals(payload.decodeToString(), savedFile.readBytes().decodeToString())
-
-            val topItem = viewModel.uiState.value.items.firstOrNull { it.id == completed.itemId }
-            assertEquals(TransferStatus.Completed, topItem?.transferStatus)
-        } finally {
-            service.stopFtpServer()
-            tempDir.deleteRecursively()
         }
     }
 }

@@ -88,9 +88,9 @@ class FtpIngestService(
     }
 
     override suspend fun stopFtpServer() {
+        cleanupSockets()
         acceptJob?.cancelAndJoin()
         acceptJob = null
-        cleanupSockets()
         boundPort = null
         _serverStatus.value = ServerStatus.Stopped
     }
