@@ -1,0 +1,15 @@
+# Gradle & Kotlin build artifacts
+.gradle/
+.kotlin/
+build/
+**/build/
+
+# IDE & OS metadata
+.idea/
+*.iml
+.DS_Store
+**/.DS_Store
+**/xcuserdata/
+
+# Local environment config
+local.properties
