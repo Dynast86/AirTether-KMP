@@ -1,11 +1,10 @@
 package com.dynast.airtether.domain.port
 
-import com.dynast.airtether.domain.model.ExifData
-import com.dynast.airtether.domain.model.PhotoFormat
+import com.dynast.airtether.model.ExifMetadata
 
 data class ExtractedPreview(
     val previewJpegBytes: ByteArray?,
-    val exif: ExifData,
+    val exif: ExifMetadata?,
 )
 
 /**
@@ -15,6 +14,6 @@ data class ExtractedPreview(
 interface RawPreviewExtractor {
     suspend fun extract(
         filePath: String,
-        format: PhotoFormat,
+        isRaw: Boolean,
     ): ExtractedPreview
 }

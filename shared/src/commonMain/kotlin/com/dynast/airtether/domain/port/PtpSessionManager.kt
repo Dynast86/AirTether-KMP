@@ -1,13 +1,19 @@
 package com.dynast.airtether.domain.port
 
-import com.dynast.airtether.domain.model.LiveViewFrame
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 
+data class LiveViewFramePacket(
+    val jpegBytes: ByteArray,
+    val width: Int = 0,
+    val height: Int = 0,
+    val timestampMs: Long = 0L,
+)
+
 /**
- * Coordinates single-owner access to the connected USB PTP device so that
- * file ingestion (`feature/ingest-ftp-usb`) and live view (`feature/ptp-liveview`)
- * never contend on the same USB interface or transaction pipeline.
+ * Coordinates single-owner access to the connected USB PTP device
+ * (e.g. `:core:nikon-ptp`'s NikonSessionManager) so file ingestion and
+ * live view never contend on the same USB interface.
  */
 interface PtpSessionManager {
     val isConnected: StateFlow<Boolean>
@@ -16,7 +22,7 @@ interface PtpSessionManager {
     suspend fun openSession(): Result<Unit>
     suspend fun closeSession()
 
-    fun observeLiveViewFrames(): Flow<LiveViewFrame>
+    fun observeLiveViewFrames(): Flow<LiveViewFramePacket>
     suspend fun startLiveView(): Result<Unit>
     suspend fun stopLiveView()
 
