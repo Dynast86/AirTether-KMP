@@ -2,6 +2,7 @@ package com.dynast.airtether.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.dynast.airtether.domain.port.CullingRepository
 import com.dynast.airtether.domain.port.IngestService
 import com.dynast.airtether.domain.port.PhotoStorage
 import com.dynast.airtether.domain.port.RawPreviewExtractor
@@ -18,6 +19,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -56,6 +58,7 @@ class TetheringViewModel(
     private val ingestService: IngestService? = null,
     private val rawPreviewExtractor: RawPreviewExtractor? = null,
     private val photoStorage: PhotoStorage? = null,
+    private val cullingRepository: CullingRepository? = null,
 ) : ViewModel() {
 
     private val scope: CoroutineScope = coroutineScope ?: runCatching {
@@ -73,6 +76,7 @@ class TetheringViewModel(
     private var sequenceCounter = 1048
 
     init {
+        restorePersistedItems()
         observeIngestionPipeline()
         observeExternalIngestService()
         if (autoSimulateInitialTransfer) {
@@ -171,7 +175,10 @@ class TetheringViewModel(
                                 selectedItemId = nextSelectedId
                             )
                         }
-                        completedItem?.let { extractPreviewAsync(it, event.localUri) }
+                        completedItem?.let { item ->
+                            scope.launch { cullingRepository?.upsertItem(item) }
+                            extractPreviewAsync(item, event.localUri)
+                        }
                     }
 
                     is IngestionEvent.TransferFailed -> {
@@ -190,6 +197,26 @@ class TetheringViewModel(
         }
     }
 
+    private fun restorePersistedItems() {
+        val repo = cullingRepository ?: return
+        scope.launch {
+            runCatching {
+                val saved = repo.observeItems().first()
+                if (saved.isNotEmpty()) {
+                    _uiState.update { state ->
+                        val existingIds = saved.map { it.id }.toSet()
+                        val remaining = state.items.filterNot { it.id in existingIds }
+                        val merged = saved + remaining
+                        state.copy(
+                            items = merged,
+                            selectedItemId = saved.firstOrNull()?.id ?: state.selectedItemId
+                        )
+                    }
+                }
+            }
+        }
+    }
+
     private fun extractPreviewAsync(item: TetherMediaItem, localUri: String) {
         val extractor = rawPreviewExtractor ?: return
         scope.launch {
@@ -198,6 +225,7 @@ class TetheringViewModel(
                 val cachedPreviewUri = extracted.previewJpegBytes?.let { bytes ->
                     photoStorage?.savePreviewJpeg(item.id, bytes)
                 }
+                var updatedItem: TetherMediaItem? = null
                 _uiState.update { state ->
                     state.copy(
                         items = state.items.map { existing ->
@@ -205,13 +233,14 @@ class TetheringViewModel(
                                 existing.copy(
                                     previewUri = cachedPreviewUri ?: existing.previewUri,
                                     exifMetadata = extracted.exif ?: existing.exifMetadata,
-                                )
+                                ).also { updatedItem = it }
                             } else {
                                 existing
                             }
                         }
                     )
                 }
+                updatedItem?.let { cullingRepository?.upsertItem(it) }
             }
         }
     }
@@ -261,17 +290,26 @@ class TetheringViewModel(
 
     private fun handleUpdateRating(itemId: String, rating: Int) {
         val clampedRating = rating.coerceIn(0, 5)
+        var resolvedRating: Int? = null
+        var ratedItem: TetherMediaItem? = null
         _uiState.update { state ->
             state.copy(
                 items = state.items.map { item ->
                     if (item.id == itemId) {
                         val nextRating = if (item.rating == clampedRating) 0 else clampedRating
-                        item.copy(rating = nextRating)
+                        resolvedRating = nextRating
+                        item.copy(rating = nextRating).also { ratedItem = it }
                     } else {
                         item
                     }
                 }
             )
+        }
+        val finalRating = resolvedRating ?: return
+        val repo = cullingRepository ?: return
+        scope.launch {
+            ratedItem?.let { repo.upsertItem(it) }
+            repo.updateRating(itemId, finalRating)
         }
     }
 

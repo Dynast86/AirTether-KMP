@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.dynast.airtether.culling.createPlatformCullingRepository
 import com.dynast.airtether.domain.port.createPlatformPhotoStorage
 import com.dynast.airtether.ingest.FtpIngestService
 import com.dynast.airtether.raw.FastRawPreviewExtractor
@@ -17,6 +18,7 @@ import com.dynast.airtether.viewmodel.TetheringViewModel
 fun App() {
     AirTetherTheme {
         val storage = remember { createPlatformPhotoStorage() }
+        val cullingRepository = remember { createPlatformCullingRepository() }
         val ingestService = remember(storage) {
             FtpIngestService(
                 photoStorage = storage,
@@ -30,6 +32,7 @@ fun App() {
                 ingestService = ingestService,
                 rawPreviewExtractor = rawExtractor,
                 photoStorage = storage,
+                cullingRepository = cullingRepository,
             )
         }
         TetheringScreen(viewModel = vm)
