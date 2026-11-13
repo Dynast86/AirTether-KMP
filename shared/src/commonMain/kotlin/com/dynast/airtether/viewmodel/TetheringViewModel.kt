@@ -3,6 +3,8 @@ package com.dynast.airtether.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dynast.airtether.domain.port.IngestService
+import com.dynast.airtether.domain.port.PhotoStorage
+import com.dynast.airtether.domain.port.RawPreviewExtractor
 import com.dynast.airtether.model.ExifMetadata
 import com.dynast.airtether.model.ServerStatus
 import com.dynast.airtether.model.TetherMediaItem
@@ -50,7 +52,9 @@ sealed interface IngestionEvent {
 class TetheringViewModel(
     autoSimulateInitialTransfer: Boolean = true,
     coroutineScope: CoroutineScope? = null,
-    private val ingestService: IngestService? = null
+    private val ingestService: IngestService? = null,
+    private val rawPreviewExtractor: RawPreviewExtractor? = null,
+    private val photoStorage: PhotoStorage? = null,
 ) : ViewModel() {
 
     private val scope: CoroutineScope = coroutineScope ?: runCatching {
@@ -142,14 +146,15 @@ class TetheringViewModel(
                     }
 
                     is IngestionEvent.TransferCompleted -> {
+                        var completedItem: TetherMediaItem? = null
                         _uiState.update { state ->
                             val updatedItems = state.items.map { item ->
                                 if (item.id == event.itemId) {
                                     item.copy(
                                         transferStatus = TransferStatus.Completed,
                                         localUri = event.localUri,
-                                        exifMetadata = event.exifMetadata
-                                    )
+                                        exifMetadata = event.exifMetadata ?: item.exifMetadata
+                                    ).also { completedItem = it }
                                 } else {
                                     item
                                 }
@@ -164,6 +169,7 @@ class TetheringViewModel(
                                 selectedItemId = nextSelectedId
                             )
                         }
+                        completedItem?.let { extractPreviewAsync(it, event.localUri) }
                     }
 
                     is IngestionEvent.TransferFailed -> {
@@ -179,6 +185,32 @@ class TetheringViewModel(
                             )
                         }
                     }
+        }
+    }
+
+    private fun extractPreviewAsync(item: TetherMediaItem, localUri: String) {
+        val extractor = rawPreviewExtractor ?: return
+        scope.launch {
+            runCatching {
+                val extracted = extractor.extract(filePath = localUri, isRaw = item.isRaw)
+                val cachedPreviewUri = extracted.previewJpegBytes?.let { bytes ->
+                    photoStorage?.savePreviewJpeg(item.id, bytes)
+                }
+                _uiState.update { state ->
+                    state.copy(
+                        items = state.items.map { existing ->
+                            if (existing.id == item.id) {
+                                existing.copy(
+                                    previewUri = cachedPreviewUri ?: existing.previewUri,
+                                    exifMetadata = extracted.exif ?: existing.exifMetadata,
+                                )
+                            } else {
+                                existing
+                            }
+                        }
+                    )
+                }
+            }
         }
     }
 

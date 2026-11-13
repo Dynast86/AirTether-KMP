@@ -6,6 +6,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -33,6 +34,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -43,6 +45,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import com.dynast.airtether.ui.util.loadImageBitmapFromUri
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -177,6 +182,10 @@ private fun EmbeddedPreviewFrame(
     onRetry: () -> Unit
 ) {
     val accentColor = Color(item.previewAccentHex)
+    val decodedBitmap by produceState<ImageBitmap?>(initialValue = null, key1 = item.displayUri) {
+        val uri = item.displayUri
+        value = if (uri != null) loadImageBitmapFromUri(uri) else null
+    }
 
     Box(
         modifier = Modifier
@@ -193,8 +202,17 @@ private fun EmbeddedPreviewFrame(
             .border(1.dp, StudioBorder, RoundedCornerShape(10.dp)),
         contentAlignment = Alignment.Center
     ) {
-        // Simulated High-Speed Embedded Preview Canvas (3:2 Full-Frame Sensor Aspect Ratio)
-        Canvas(modifier = Modifier.fillMaxSize()) {
+        val bitmap = decodedBitmap
+        if (bitmap != null) {
+            Image(
+                bitmap = bitmap,
+                contentDescription = item.fileName,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            // Simulated High-Speed Embedded Preview Canvas (3:2 Full-Frame Sensor Aspect Ratio)
+            Canvas(modifier = Modifier.fillMaxSize()) {
             drawRect(
                 brush = Brush.radialGradient(
                     colors = listOf(
@@ -250,6 +268,7 @@ private fun EmbeddedPreviewFrame(
                 size = afBoxSize,
                 style = Stroke(width = 2f)
             )
+            }
         }
 
         // Center Status / File Overlay inside the frame

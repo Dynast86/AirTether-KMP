@@ -39,8 +39,11 @@ data class TetherMediaItem(
     val exifMetadata: ExifMetadata?,
     val rating: Int = 0,
     val capturedAt: String = "10:42:00",
-    val previewAccentHex: Long = 0xFF38BDF8
+    val previewAccentHex: Long = 0xFF38BDF8,
+    val previewUri: String? = null
 ) {
+    val displayUri: String?
+        get() = previewUri ?: localUri
     val extension: String
         get() = fileName.substringAfterLast('.', "").uppercase()
 
