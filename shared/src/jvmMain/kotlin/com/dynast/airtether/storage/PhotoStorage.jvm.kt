@@ -1,6 +1,5 @@
-package com.dynast.airtether.storage
+package com.dynast.airtether.domain.port
 
-import com.dynast.airtether.domain.port.PhotoStorage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File

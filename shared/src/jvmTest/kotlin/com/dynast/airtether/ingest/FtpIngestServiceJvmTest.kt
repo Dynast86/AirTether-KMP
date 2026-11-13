@@ -1,8 +1,8 @@
 package com.dynast.airtether.ingest
 
+import com.dynast.airtether.domain.port.JvmPhotoStorage
 import com.dynast.airtether.model.ServerStatus
 import com.dynast.airtether.model.TransferStatus
-import com.dynast.airtether.storage.JvmPhotoStorage
 import com.dynast.airtether.viewmodel.IngestionEvent
 import com.dynast.airtether.viewmodel.TetheringViewModel
 import io.ktor.network.selector.SelectorManager

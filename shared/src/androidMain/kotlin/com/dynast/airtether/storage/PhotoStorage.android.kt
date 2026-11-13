@@ -1,4 +1,4 @@
-package com.dynast.airtether.storage
+package com.dynast.airtether.domain.port
 
 import android.content.ContentValues
 import android.content.Context
@@ -6,7 +6,6 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
-import com.dynast.airtether.domain.port.PhotoStorage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File

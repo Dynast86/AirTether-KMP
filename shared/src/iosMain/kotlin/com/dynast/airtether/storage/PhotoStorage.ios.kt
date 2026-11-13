@@ -1,6 +1,5 @@
-package com.dynast.airtether.storage
+package com.dynast.airtether.domain.port
 
-import com.dynast.airtether.domain.port.PhotoStorage
 import kotlinx.io.files.Path
 import kotlinx.io.files.SystemFileSystem
 import platform.Foundation.NSTemporaryDirectory
