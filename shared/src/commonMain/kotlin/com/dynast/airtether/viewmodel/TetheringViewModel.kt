@@ -44,7 +44,8 @@ sealed interface IngestionEvent {
     data class TransferCompleted(
         val itemId: String,
         val localUri: String,
-        val exifMetadata: ExifMetadata? = null
+        val exifMetadata: ExifMetadata? = null,
+        val fileSizeBytes: Long? = null
     ) : IngestionEvent
     data class TransferFailed(val itemId: String, val reason: String) : IngestionEvent
 }
@@ -153,6 +154,7 @@ class TetheringViewModel(
                                     item.copy(
                                         transferStatus = TransferStatus.Completed,
                                         localUri = event.localUri,
+                                        fileSize = event.fileSizeBytes ?: item.fileSize,
                                         exifMetadata = event.exifMetadata ?: item.exifMetadata
                                     ).also { completedItem = it }
                                 } else {

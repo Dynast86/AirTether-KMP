@@ -243,6 +243,7 @@ class FtpIngestService(
                     itemId = itemId,
                     localUri = savedPath,
                     exifMetadata = null,
+                    fileSizeBytes = totalBytes,
                 )
             )
             true

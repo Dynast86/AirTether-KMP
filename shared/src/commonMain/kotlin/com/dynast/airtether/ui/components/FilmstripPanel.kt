@@ -1,5 +1,6 @@
 package com.dynast.airtether.ui.components
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -22,11 +24,15 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -34,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dynast.airtether.model.TetherMediaItem
 import com.dynast.airtether.model.TransferStatus
+import com.dynast.airtether.ui.util.loadImageBitmapFromUri
 import com.dynast.airtether.ui.theme.StudioBackground
 import com.dynast.airtether.ui.theme.StudioBorder
 import com.dynast.airtether.ui.theme.StudioDanger
@@ -331,6 +338,10 @@ private fun ThumbnailPreviewBox(
     isLatest: Boolean
 ) {
     val accent = Color(item.previewAccentHex)
+    val thumbnailBitmap by produceState<ImageBitmap?>(initialValue = null, key1 = item.displayUri) {
+        val uri = item.displayUri
+        value = if (uri != null) loadImageBitmapFromUri(uri) else null
+    }
     Box(
         modifier = Modifier
             .size(width = 72.dp, height = 54.dp)
@@ -346,13 +357,23 @@ private fun ThumbnailPreviewBox(
             .border(1.dp, StudioBorder, RoundedCornerShape(6.dp)),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = item.extension,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.ExtraBold,
-            fontFamily = FontFamily.Monospace,
-            color = StudioTextPrimary.copy(alpha = 0.85f)
-        )
+        val bitmap = thumbnailBitmap
+        if (bitmap != null) {
+            Image(
+                bitmap = bitmap,
+                contentDescription = item.fileName,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            Text(
+                text = item.extension,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.ExtraBold,
+                fontFamily = FontFamily.Monospace,
+                color = StudioTextPrimary.copy(alpha = 0.85f)
+            )
+        }
 
         if (isLatest) {
             Box(
