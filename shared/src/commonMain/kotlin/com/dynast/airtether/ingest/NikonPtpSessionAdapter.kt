@@ -82,7 +82,8 @@ class NikonPtpSessionAdapter(
         return sessionManager.liveViewFrames.map { frame ->
             LiveViewFramePacket(
                 jpegBytes = frame.jpegBytes,
-                timestampMs = frame.timestampMs,
+                width = frame.header.jpegWidth,
+                height = frame.header.jpegHeight,
             )
         }
     }
@@ -98,7 +99,7 @@ class NikonPtpSessionAdapter(
 
     override suspend fun triggerShutter(): Result<Unit> = runCatching {
         val result = sessionManager.executeWithBusyRetry(PtpConstants.OP_INITIATE_CAPTURE)
-        if (!result.response.isOk) {
+        if (!result.isSuccess) {
             error("Shutter trigger failed: 0x${result.response.responseCode.toString(16)}")
         }
     }
@@ -129,11 +130,11 @@ class NikonPtpSessionAdapter(
                 opCode = PtpConstants.OP_GET_OBJECT,
                 params = listOf(objectHandle),
             )
-            if (!objectResult.response.isOk) {
+            if (!objectResult.isSuccess) {
                 error("GetObject failed: 0x${objectResult.response.responseCode.toString(16)}")
             }
 
-            val bytes = objectResult.data
+            val bytes = objectResult.dataPayload
             pendingHandle = photoStorage.createPendingFile(fileName, mimeType)
             photoStorage.writeChunk(pendingHandle, bytes, 0L)
             val savedPath = photoStorage.commitPendingFile(pendingHandle)
@@ -162,7 +163,8 @@ class NikonPtpSessionAdapter(
         when (event.eventCode) {
             PtpConstants.EVT_OBJECT_ADDED,
             PtpConstants.EVT_NIKON_OBJECT_ADDED_IN_SDRAM -> {
-                val handle = event.params.firstOrNull() ?: return
+                val handle = event.parameter
+                if (handle == 0u) return
                 ingestObjectHandle(handle)
             }
         }
@@ -173,10 +175,10 @@ class NikonPtpSessionAdapter(
             opCode = PtpConstants.OP_GET_OBJECT_INFO,
             params = listOf(objectHandle),
         )
-        if (!infoResult.response.isOk || infoResult.data.size <= 53) {
+        if (!infoResult.isSuccess || infoResult.dataPayload.size <= 53) {
             return "PTP_${objectHandle}.NEF"
         }
-        return parsePtpString(infoResult.data, offset = 52)
+        return parsePtpString(infoResult.dataPayload, offset = 52)
             .takeIf { it.isNotBlank() } ?: "PTP_${objectHandle}.NEF"
     }
 

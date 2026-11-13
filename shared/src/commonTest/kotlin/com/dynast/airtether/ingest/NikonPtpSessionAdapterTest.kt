@@ -13,8 +13,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -27,11 +29,11 @@ class NikonPtpSessionAdapterTest {
 
     private class FakePtpTransport : PtpTransport {
         override val transportName: String = "FakePTP"
-        override val isConnected: Boolean = true
+        override val isConnected: StateFlow<Boolean> = MutableStateFlow(true)
         private val _events = MutableSharedFlow<com.dynast.airtether.core.nikonptp.protocol.PtpEventPacket>(extraBufferCapacity = 8)
-        override val eventFlow: SharedFlow<com.dynast.airtether.core.nikonptp.protocol.PtpEventPacket> = _events
+        override val incomingEvents: Flow<com.dynast.airtether.core.nikonptp.protocol.PtpEventPacket> = _events
 
-        override suspend fun connect(): Boolean = true
+        override suspend fun connect() {}
         override suspend fun disconnect() {}
 
         override suspend fun executeTransaction(
@@ -56,13 +58,13 @@ class NikonPtpSessionAdapterTest {
                     }
                     PtpTransactionResult(
                         response = PtpResponsePacket(PtpConstants.RES_OK, command.transactionId),
-                        data = header + strLen + utf16,
+                        dataPayload = header + strLen + utf16,
                     )
                 }
                 PtpConstants.OP_GET_OBJECT -> {
                     PtpTransactionResult(
                         response = PtpResponsePacket(PtpConstants.RES_OK, command.transactionId),
-                        data = "PTP_RAW_BYTES".encodeToByteArray(),
+                        dataPayload = "PTP_RAW_BYTES".encodeToByteArray(),
                     )
                 }
                 else -> PtpTransactionResult(PtpResponsePacket(PtpConstants.RES_OK, command.transactionId))
