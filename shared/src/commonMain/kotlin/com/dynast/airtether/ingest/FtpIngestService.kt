@@ -42,6 +42,7 @@ class FtpIngestService(
     private val photoStorage: PhotoStorage,
     private val bindHost: String = "0.0.0.0",
     private val advertisedHost: String = "127.0.0.1",
+    private val passivePort: Int = 2122,
     private val ioContext: CoroutineContext = Dispatchers.Default,
 ) : IngestService {
 
@@ -147,7 +148,7 @@ class FtpIngestService(
                     "SIZE" -> reply("550 Could not get file size")
                     "PASV" -> {
                         runCatching { passiveServer?.close() }
-                        val dataServer = aSocket(selector).tcp().bind(InetSocketAddress(bindHost, 0))
+                        val dataServer = bindPassiveServer(selector)
                         passiveServer = dataServer
                         val dataPort = (dataServer.localAddress as? InetSocketAddress)?.port ?: 0
                         val hostIp = resolvePasvIp(controlSocket)
@@ -158,7 +159,7 @@ class FtpIngestService(
                     }
                     "EPSV" -> {
                         runCatching { passiveServer?.close() }
-                        val dataServer = aSocket(selector).tcp().bind(InetSocketAddress(bindHost, 0))
+                        val dataServer = bindPassiveServer(selector)
                         passiveServer = dataServer
                         val dataPort = (dataServer.localAddress as? InetSocketAddress)?.port ?: 0
                         reply("229 Entering Extended Passive Mode (|||$dataPort|)")
@@ -252,6 +253,15 @@ class FtpIngestService(
             _events.emit(IngestionEvent.TransferFailed(itemId, t.message ?: "FTP transfer failed"))
             false
         }
+    }
+
+    private suspend fun bindPassiveServer(selector: SelectorManager): ServerSocket {
+        if (passivePort > 0) {
+            runCatching {
+                return aSocket(selector).tcp().bind(InetSocketAddress(bindHost, passivePort))
+            }
+        }
+        return aSocket(selector).tcp().bind(InetSocketAddress(bindHost, 0))
     }
 
     private fun resolvePasvIp(controlSocket: Socket): String {
