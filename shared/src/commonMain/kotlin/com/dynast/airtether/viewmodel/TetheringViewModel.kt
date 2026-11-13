@@ -6,6 +6,7 @@ import com.dynast.airtether.domain.port.CullingRepository
 import com.dynast.airtether.domain.port.IngestService
 import com.dynast.airtether.domain.port.PhotoStorage
 import com.dynast.airtether.domain.port.RawPreviewExtractor
+import com.dynast.airtether.ingest.FtpHostController
 import com.dynast.airtether.model.ExifMetadata
 import com.dynast.airtether.model.ServerStatus
 import com.dynast.airtether.model.TetherMediaItem
@@ -59,6 +60,7 @@ class TetheringViewModel(
     private val rawPreviewExtractor: RawPreviewExtractor? = null,
     private val photoStorage: PhotoStorage? = null,
     private val cullingRepository: CullingRepository? = null,
+    private val ftpHostController: FtpHostController? = null,
 ) : ViewModel() {
 
     private val scope: CoroutineScope = coroutineScope ?: runCatching {
@@ -314,12 +316,17 @@ class TetheringViewModel(
     }
 
     private fun handleToggleServerStatus() {
+        val controller = ftpHostController
         val service = ingestService
-        if (service != null) {
+        if (controller != null || service != null) {
             scope.launch {
                 when (_uiState.value.serverStatus) {
-                    is ServerStatus.Running, ServerStatus.Starting -> service.stopFtpServer()
-                    else -> service.startFtpServer(2121)
+                    is ServerStatus.Running, ServerStatus.Starting -> {
+                        if (controller != null) controller.stop() else service?.stopFtpServer()
+                    }
+                    else -> {
+                        if (controller != null) controller.start(2121) else service?.startFtpServer(2121)
+                    }
                 }
             }
             return
