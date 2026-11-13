@@ -55,6 +55,7 @@ kotlin {
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.io.core)
             implementation(libs.ktor.network)
+            implementation(project(":core:nikon-ptp"))
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

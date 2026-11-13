@@ -117,4 +117,17 @@ class TetheringViewModelTest {
         viewModel.onIntent(TetheringIntent.ToggleServerStatus)
         assertIs<ServerStatus.Running>(viewModel.uiState.value.serverStatus)
     }
+
+    @Test
+    fun ratingFilterAndSessionNameUpdate() {
+        val viewModel = createTestViewModel()
+        viewModel.onIntent(TetheringIntent.UpdateSessionName("Wedding_Outdoor_02"))
+        assertEquals("Wedding_Outdoor_02", viewModel.uiState.value.sessionName)
+
+        viewModel.onIntent(TetheringIntent.SetRatingFilter(4))
+        assertTrue(viewModel.uiState.value.visibleItems.all { it.rating >= 4 })
+
+        viewModel.onIntent(TetheringIntent.SetRatingFilter(0))
+        assertEquals(viewModel.uiState.value.items.size, viewModel.uiState.value.visibleItems.size)
+    }
 }

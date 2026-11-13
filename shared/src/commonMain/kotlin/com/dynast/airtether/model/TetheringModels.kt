@@ -93,10 +93,14 @@ data class TetheringUiState(
     val items: List<TetherMediaItem> = emptyList(),
     val selectedItemId: String? = null,
     val isExifOverlayVisible: Boolean = true,
-    val sessionName: String = "Studio_Portrait_S01"
+    val sessionName: String = "Studio_Portrait_S01",
+    val minRatingFilter: Int = 0
 ) {
+    val visibleItems: List<TetherMediaItem>
+        get() = if (minRatingFilter <= 0) items else items.filter { it.rating >= minRatingFilter }
+
     val selectedItem: TetherMediaItem?
-        get() = items.find { it.id == selectedItemId } ?: items.firstOrNull()
+        get() = visibleItems.find { it.id == selectedItemId } ?: visibleItems.firstOrNull() ?: items.firstOrNull()
 
     val completedCount: Int
         get() = items.count { it.transferStatus is TransferStatus.Completed }

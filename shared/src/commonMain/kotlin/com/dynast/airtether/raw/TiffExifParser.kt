@@ -8,6 +8,13 @@ internal data class TiffParseResult(
     val previewJpegBytes: ByteArray?,
 )
 
+internal data class TiffLocatedResult(
+    val exif: ExifMetadata?,
+    val previewOffset: Long?,
+    val previewLength: Int?,
+    val previewJpegBytes: ByteArray?,
+)
+
 /**
  * Parses standard TIFF / EXIF IFD trees (NEF, ARW, CR2, DNG, ORF, RW2, and JPEG APP1 EXIF)
  * to extract [ExifMetadata] and the largest embedded Preview JPEG without Bayer demosaicing.
@@ -36,17 +43,26 @@ internal object TiffExifParser {
     private data class JpegCandidate(val offset: Int, val length: Int)
 
     fun parse(reader: BinaryByteReader, extractPreview: Boolean = true): TiffParseResult {
-        if (reader.length < 8) return TiffParseResult(null, null)
+        val located = parseWithLocation(reader, extractPreview, reader.length.toLong())
+        return TiffParseResult(exif = located.exif, previewJpegBytes = located.previewJpegBytes)
+    }
+
+    fun parseWithLocation(
+        reader: BinaryByteReader,
+        extractPreview: Boolean = true,
+        totalFileLength: Long = reader.length.toLong(),
+    ): TiffLocatedResult {
+        if (reader.length < 8) return TiffLocatedResult(null, null, null, null)
 
         val order = when {
             reader.u8(0) == 0x49 && reader.u8(1) == 0x49 -> ByteOrder.LITTLE_ENDIAN // "II"
             reader.u8(0) == 0x4D && reader.u8(1) == 0x4D -> ByteOrder.BIG_ENDIAN    // "MM"
-            else -> return TiffParseResult(null, null)
+            else -> return TiffLocatedResult(null, null, null, null)
         }
         reader.byteOrder = order
 
         val magic = reader.u16(2)
-        if (magic != 42) return TiffParseResult(null, null)
+        if (magic != 42) return TiffLocatedResult(null, null, null, null)
 
         val ifd0Offset = reader.u32(4).toInt()
         val visited = HashSet<Int>()
@@ -133,12 +149,14 @@ internal object TiffExifParser {
 
             if (extractPreview) {
                 if (jpegOffset != null && jpegLength != null && jpegLength > 0 &&
-                    reader.startsWithJpegSoi(jpegOffset) && reader.inBounds(jpegOffset, jpegLength)
+                    jpegOffset.toLong() + jpegLength.toLong() <= totalFileLength &&
+                    (!reader.inBounds(jpegOffset, 2) || reader.startsWithJpegSoi(jpegOffset))
                 ) {
                     candidates += JpegCandidate(jpegOffset, jpegLength)
                 }
                 if (stripOffset != null && stripLength != null && stripLength > 0 &&
-                    reader.startsWithJpegSoi(stripOffset) && reader.inBounds(stripOffset, stripLength)
+                    stripOffset.toLong() + stripLength.toLong() <= totalFileLength &&
+                    (!reader.inBounds(stripOffset, 2) || reader.startsWithJpegSoi(stripOffset))
                 ) {
                     candidates += JpegCandidate(stripOffset, stripLength)
                 }
@@ -151,10 +169,11 @@ internal object TiffExifParser {
             }
         }
 
-        val bestPreview = if (extractPreview) {
-            candidates.maxByOrNull { it.length }?.let { reader.slice(it.offset, it.length) }
-        } else {
-            null
+        val bestCandidate = if (extractPreview) candidates.maxByOrNull { it.length } else null
+        val bestPreview = bestCandidate?.let { candidate ->
+            if (reader.inBounds(candidate.offset, candidate.length)) {
+                reader.slice(candidate.offset, candidate.length)
+            } else null
         }
 
         val hasAnyExif = shutterSpeed != null || aperture != null || iso != null ||
@@ -172,7 +191,12 @@ internal object TiffExifParser {
             null
         }
 
-        return TiffParseResult(exif = metadata, previewJpegBytes = bestPreview)
+        return TiffLocatedResult(
+            exif = metadata,
+            previewOffset = bestCandidate?.offset?.toLong(),
+            previewLength = bestCandidate?.length,
+            previewJpegBytes = bestPreview,
+        )
     }
 
     private fun readScalarInt(reader: BinaryByteReader, type: Int, valueFieldOffset: Int): Int {

@@ -2,14 +2,30 @@ package com.dynast.airtether.domain.port
 
 import kotlinx.io.files.Path
 import kotlinx.io.files.SystemFileSystem
+import platform.Foundation.NSDocumentDirectory
+import platform.Foundation.NSSearchPathForDirectoriesInDomains
 import platform.Foundation.NSTemporaryDirectory
+import platform.Foundation.NSUserDomainMask
+
+object IosPhotoLibraryBridge {
+    var onExportToPhotos: ((filePath: String) -> Unit)? = null
+}
+
+private fun resolveIosDocumentsRoot(): String {
+    val docs = NSSearchPathForDirectoriesInDomains(
+        directory = NSDocumentDirectory,
+        domainMask = NSUserDomainMask,
+        expandTilde = true,
+    ).firstOrNull() as? String
+    return (docs ?: NSTemporaryDirectory()).trimEnd('/')
+}
 
 class IosPhotoStorage(
     private val sessionName: String = "AirTether",
 ) : PhotoStorage {
 
     private val baseDir: Path by lazy {
-        val root = NSTemporaryDirectory().trimEnd('/')
+        val root = resolveIosDocumentsRoot()
         Path("$root/AirTether/$sessionName").also {
             SystemFileSystem.createDirectories(it)
         }
@@ -37,7 +53,9 @@ class IosPhotoStorage(
         val (tempPath, finalPath) = pending.remove(pendingHandle)
             ?: error("Unknown pending handle: $pendingHandle")
         SystemFileSystem.atomicMove(tempPath, finalPath)
-        return finalPath.toString()
+        val savedPath = finalPath.toString()
+        IosPhotoLibraryBridge.onExportToPhotos?.invoke(savedPath)
+        return savedPath
     }
 
     override suspend fun abortPendingFile(pendingHandle: String) {

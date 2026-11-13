@@ -70,7 +70,7 @@ fun TetheringScreenContent(
                 .weight(1f)
         ) {
             FilmstripPanel(
-                items = uiState.items,
+                items = uiState.visibleItems,
                 selectedItemId = uiState.selectedItem?.id,
                 completedCount = uiState.completedCount,
                 transferringCount = uiState.transferringCount,

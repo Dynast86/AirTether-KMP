@@ -8,6 +8,10 @@ import kotlinx.io.files.SystemFileSystem
 import kotlinx.io.readByteArray
 import org.jetbrains.skia.Image
 
+object IosNetworkIpBridge {
+    var resolveLocalIp: (() -> String?)? = null
+}
+
 actual suspend fun loadImageBitmapFromUri(uri: String): ImageBitmap? {
     return runCatching {
         val path = Path(uri.removePrefix("file://"))
@@ -17,4 +21,5 @@ actual suspend fun loadImageBitmapFromUri(uri: String): ImageBitmap? {
     }.getOrNull()
 }
 
-actual fun resolveLocalIpAddress(): String = "127.0.0.1"
+actual fun resolveLocalIpAddress(): String =
+    IosNetworkIpBridge.resolveLocalIp?.invoke()?.takeIf { it.isNotBlank() } ?: "127.0.0.1"

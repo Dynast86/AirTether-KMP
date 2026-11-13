@@ -33,6 +33,9 @@ sealed interface TetheringIntent {
     data object PauseLiveFollowOnGesture : TetheringIntent
     data object ToggleExifOverlay : TetheringIntent
     data class UpdateRating(val itemId: String, val rating: Int) : TetheringIntent
+    data class SetRatingFilter(val minRating: Int) : TetheringIntent
+    data class UpdateSessionName(val sessionName: String) : TetheringIntent
+    data object ClearMockItems : TetheringIntent
     data object SimulateIncomingPhoto : TetheringIntent
     data class RetryTransfer(val itemId: String) : TetheringIntent
     data object ToggleServerStatus : TetheringIntent
@@ -93,6 +96,22 @@ class TetheringViewModel(
             TetheringIntent.PauseLiveFollowOnGesture -> handlePauseLiveFollowOnGesture()
             TetheringIntent.ToggleExifOverlay -> handleToggleExifOverlay()
             is TetheringIntent.UpdateRating -> handleUpdateRating(intent.itemId, intent.rating)
+            is TetheringIntent.SetRatingFilter -> _uiState.update {
+                it.copy(minRatingFilter = intent.minRating.coerceIn(0, 5))
+            }
+            is TetheringIntent.UpdateSessionName -> {
+                val trimmed = intent.sessionName.trim()
+                if (trimmed.isNotEmpty()) {
+                    _uiState.update { it.copy(sessionName = trimmed) }
+                }
+            }
+            TetheringIntent.ClearMockItems -> _uiState.update { state ->
+                val realOnly = state.items.filterNot { it.id.startsWith("mock-") }
+                state.copy(
+                    items = realOnly,
+                    selectedItemId = realOnly.firstOrNull()?.id,
+                )
+            }
             TetheringIntent.SimulateIncomingPhoto -> simulateIncomingPhoto()
             is TetheringIntent.RetryTransfer -> retryTransfer(intent.itemId)
             TetheringIntent.ToggleServerStatus -> handleToggleServerStatus()
