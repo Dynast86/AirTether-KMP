@@ -1,9 +1,8 @@
 package com.dynast.airtether.core.nikonptp.pacing
 
-import kotlin.math.roundToInt
+import kotlinx.coroutines.delay
 import kotlin.time.Duration.Companion.nanoseconds
 import kotlin.time.TimeSource
-import kotlinx.coroutines.delay
 
 /**
  * Standard cinema & broadcast camera recording frame rates with exact nanosecond frame intervals.

@@ -89,18 +89,13 @@ class MockPtpTransport(
         return when (command.opCode) {
             PtpConstants.OP_OPEN_SESSION -> okResult(command.transactionId)
 
-            PtpConstants.OP_CLOSE_SESSION -> {
+            PtpConstants.OP_CLOSE_SESSION, PtpConstants.OP_NIKON_END_LIVE_VIEW -> {
                 isLiveViewRunning = false
                 okResult(command.transactionId)
             }
 
             PtpConstants.OP_NIKON_START_LIVE_VIEW -> {
                 isLiveViewRunning = true
-                okResult(command.transactionId)
-            }
-
-            PtpConstants.OP_NIKON_END_LIVE_VIEW -> {
-                isLiveViewRunning = false
                 okResult(command.transactionId)
             }
 

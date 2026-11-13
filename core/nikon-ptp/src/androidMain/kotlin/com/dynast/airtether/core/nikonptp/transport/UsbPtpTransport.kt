@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Production Android USB Host PTP transport (`androidMain`) wrapping [UsbManager] and [UsbDeviceConnection].
@@ -100,6 +101,7 @@ class UsbPtpTransport(
                         bulkIn = ep
                     }
                 }
+
                 UsbConstants.USB_ENDPOINT_XFER_INT -> {
                     if (ep.direction == UsbConstants.USB_DIR_IN) {
                         interruptIn = ep
@@ -280,10 +282,10 @@ class UsbPtpTransport(
                         val header = PtpPacketSerializer.decodeHeader(intBuffer)
                         if (header.type == PtpContainerType.EVENT) {
                             val param = if (n >= 16) {
-                                ((intBuffer[12].toInt() and 0xFF)) or
-                                    ((intBuffer[13].toInt() and 0xFF) shl 8) or
-                                    ((intBuffer[14].toInt() and 0xFF) shl 16) or
-                                    ((intBuffer[15].toInt() and 0xFF) shl 24)
+                                (intBuffer[12].toInt() and 0xFF) or
+                                        ((intBuffer[13].toInt() and 0xFF) shl 8) or
+                                        ((intBuffer[14].toInt() and 0xFF) shl 16) or
+                                        ((intBuffer[15].toInt() and 0xFF) shl 24)
                             } else {
                                 0
                             }
@@ -297,7 +299,7 @@ class UsbPtpTransport(
                         }
                     }
                 } else {
-                    delay(25L)
+                    delay(25L.milliseconds)
                 }
             }
         }
@@ -309,15 +311,15 @@ class UsbPtpTransport(
         const val PTP_PROTOCOL_PIMA_15740: Int = 1
 
         private const val BULK_CHUNK_SIZE: Int = 64 * 1024 // 64 KB
-        private const val INITIAL_ASSEMBLY_BUFFER_SIZE: Int = 256 * 1024 // 256 KB reusable frame buffer
+        private const val INITIAL_ASSEMBLY_BUFFER_SIZE: Int =
+            256 * 1024 // 256 KB reusable frame buffer
 
         /**
          * Returns true if [device] is a Nikon camera (`vendorId == 0x04B0`) or exposes a USB Still Image
          * Capture interface (`Class 6, Subclass 1, Protocol 1`).
          */
         fun isNikonOrPtpCamera(device: UsbDevice): Boolean {
-            if (device.vendorId == NIKON_VENDOR_ID) return true
-            return findPtpStillImageInterface(device) != null
+            return device.vendorId == NIKON_VENDOR_ID || findPtpStillImageInterface(device) != null
         }
 
         /**

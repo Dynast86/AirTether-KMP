@@ -27,6 +27,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * High-level state of a Nikon PTP / PTP-IP camera session.
@@ -39,6 +40,7 @@ sealed interface NikonSessionState {
         val transportName: String = "",
         val isLiveViewActive: Boolean = false
     ) : NikonSessionState
+
     data class Error(val message: String) : NikonSessionState
 }
 
@@ -72,7 +74,8 @@ class NikonSessionManager(
     private val _pacingState = MutableStateFlow(FramePacingSnapshot())
     val pacingState: StateFlow<FramePacingSnapshot> = _pacingState.asStateFlow()
 
-    private val _liveViewFrames = MutableSharedFlow<LiveViewFrame>(replay = 1, extraBufferCapacity = 4)
+    private val _liveViewFrames =
+        MutableSharedFlow<LiveViewFrame>(replay = 1, extraBufferCapacity = 4)
     val liveViewFrames: SharedFlow<LiveViewFrame> = _liveViewFrames.asSharedFlow()
 
     private val _cameraEvents = MutableSharedFlow<PtpEventPacket>(extraBufferCapacity = 64)
@@ -116,7 +119,7 @@ class NikonSessionManager(
                 return result
             }
             attempt++
-            delay(backoffMs)
+            delay(backoffMs.milliseconds)
         }
     }
 
@@ -137,7 +140,7 @@ class NikonSessionManager(
                 params = listOf(sessionId)
             )
             val isOpen = result.isSuccess ||
-                result.response.responseCode == PtpConstants.RES_SESSION_ALREADY_OPEN
+                    result.response.responseCode == PtpConstants.RES_SESSION_ALREADY_OPEN
             if (isOpen) {
                 // Auto-detect camera's configured recording frame rate (0xD1A9 MovieFrameRate)
                 queryCameraMovieFrameRate()
@@ -154,7 +157,8 @@ class NikonSessionManager(
             }
             isOpen
         }.getOrElse { error ->
-            _sessionState.value = NikonSessionState.Error(error.message ?: "Transport connection failed")
+            _sessionState.value =
+                NikonSessionState.Error(error.message ?: "Transport connection failed")
             false
         }
     }
@@ -167,8 +171,7 @@ class NikonSessionManager(
         sessionId: UInt = 1u,
         frameIntervalMs: Long = 16L
     ): Boolean {
-        if (!openSession(sessionId)) return false
-        return startLiveView(frameIntervalMs)
+        return openSession(sessionId) && startLiveView(frameIntervalMs)
     }
 
     /**
@@ -200,7 +203,8 @@ class NikonSessionManager(
      * Stops LiveView polling (`0x9202` EndLiveView), sends `0x1003` CloseSession, and disconnects the transport.
      */
     suspend fun closeSession() {
-        val wasLiveViewActive = (_sessionState.value as? NikonSessionState.Connected)?.isLiveViewActive == true
+        val wasLiveViewActive =
+            (_sessionState.value as? NikonSessionState.Connected)?.isLiveViewActive == true
         stopLiveViewPolling()
         if (wasLiveViewActive) {
             runCatching {
@@ -384,7 +388,8 @@ class NikonSessionManager(
         liveViewPollingJob = scope.launch {
             while (isActive) {
                 val targetRate = _pacingState.value.effectiveTargetRate
-                var frameResult: Result<LiveViewFrame> = Result.failure(IllegalStateException("Not executed"))
+                var frameResult: Result<LiveViewFrame> =
+                    Result.failure(IllegalStateException("Not executed"))
                 framePacer.executePacedFrame(targetRate = targetRate) {
                     frameResult = fetchSingleLiveViewFrame()
                 }
@@ -397,7 +402,7 @@ class NikonSessionManager(
                 }
                 if (frameResult.isFailure) {
                     // Backoff 50ms when camera is temporarily busy or switching modes
-                    delay(deviceBusyBackoffMs)
+                    delay(deviceBusyBackoffMs.milliseconds)
                 }
             }
         }
