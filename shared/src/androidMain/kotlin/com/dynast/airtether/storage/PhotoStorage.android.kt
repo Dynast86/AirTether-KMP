@@ -19,8 +19,15 @@ object AndroidStorageContextHolder {
 
 class AndroidPhotoStorage(
     private val context: Context?,
-    private val sessionName: String = "AirTether",
+    @Volatile private var sessionName: String = "AirTether",
 ) : PhotoStorage {
+
+    override fun updateSessionName(sessionName: String) {
+        val sanitized = sessionName.trim().replace('/', '_').replace('\\', '_')
+        if (sanitized.isNotEmpty()) {
+            this.sessionName = sanitized
+        }
+    }
 
     private sealed interface PendingTarget {
         data class MediaStoreTarget(val uri: Uri, val resolver: android.content.ContentResolver) : PendingTarget

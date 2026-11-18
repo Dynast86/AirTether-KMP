@@ -78,13 +78,14 @@ flowchart LR
 
 ---
 
-## 4. Branch Status & Strategy
+## 4. Branch & Feature Integration Status (`main`)
 
-| 브랜치 | 상태 | 담당 영역 |
+| 브랜치 / 영역 | 상태 | 담당 영역 |
 | :--- | :--- | :--- |
-| `chore/core-architecture` | 기반 정리 완료 | 공통 포트(`domain/port`), 뷰어 모델/UI 기준 최신화, 아키텍처 문서 |
-| `feature/tethering-viewer-ui` | **MVP 구현 완료** | 28/72 태블릿 2패널 UI, `TetheringModels`, `TetheringViewModel`, 단위 테스트 |
-| `feature/ptp-liveview` | **코어 & 모니터 구현 완료** | `:core:nikon-ptp` (PTP/LiveView/FramePacer) & `:app-director` (OpenGL ES 3D LUT) |
-| `feature/ingest-ftp-usb` | 구현 예정 | FTP(포트 2121) Ktor 리스너, USB PTP 파일 수신, `PhotoStorage` 구현 |
-| `feature/raw-fast-preview` | 구현 예정 | TIFF/ISOBMFF 바이트 오프셋 기반 임베디드 JPEG & EXIF 추출기 |
-| `feature/culling-room-xmp` | 구현 예정 | Room KMP 기반 별점 영속화 및 `.xmp` 사이드카 생성 |
+| `chore/core-architecture` | **통합 완료** | 공통 포트(`domain/port`), 뷰어 모델/UI 기준 최신화, 아키텍처 문서 |
+| `feature/tethering-viewer-ui` | **통합 완료** | 28/72 태블릿 2패널 UI, `TetheringModels`, `TetheringViewModel`, 별점 필터·세션명 변경·샘플 정리 |
+| `feature/ptp-liveview` | **통합 완료** | `:core:nikon-ptp` (PTP/LiveView/FramePacer), `NikonPtpSessionAdapter`, `:shared` LiveView UI & `:app-director` |
+| `feature/ingest-ftp-usb` | **통합 완료** | FTP(포트 2121/2122) Ktor 리스너, Android `AirTetherFtpService`, USB-C PTP(`AndroidUsbPtpMonitor`), `PhotoStorage` |
+| `feature/raw-fast-preview` | **통합 완료** | `RandomAccessFileSlice` 부분 읽기 기반 TIFF/ISOBMFF 임베디드 JPEG & EXIF 추출기 (`FastRawPreviewExtractor`) |
+| `feature/culling-room-xmp` | **통합 완료** | 플랫폼별 로컬 영속화(`LocalCullingRepository`) 및 Adobe Lightroom/Capture One 호환 `.xmp` 사이드카 생성 |
+| `iosApp` Platform Bridges | **통합 완료** | `IosNetworkIpBridge` (`getifaddrs` Wi-Fi IPv4 조회) 및 `IosPhotoLibraryBridge` (`PHPhotoLibrary` 내보내기) |

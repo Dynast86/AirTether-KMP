@@ -120,9 +120,27 @@ class TetheringViewModelTest {
 
     @Test
     fun ratingFilterAndSessionNameUpdate() {
-        val viewModel = createTestViewModel()
+        var recordedSessionName: String? = null
+        val fakeStorage = object : com.dynast.airtether.domain.port.PhotoStorage {
+            override fun updateSessionName(sessionName: String) {
+                recordedSessionName = sessionName
+            }
+            override suspend fun createPendingFile(fileName: String, mimeType: String) = ""
+            override suspend fun writeChunk(pendingHandle: String, bytes: ByteArray, offset: Long) {}
+            override suspend fun commitPendingFile(pendingHandle: String) = ""
+            override suspend fun abortPendingFile(pendingHandle: String) {}
+            override suspend fun savePreviewJpeg(photoId: String, jpegBytes: ByteArray) = ""
+        }
+        val viewModel = TetheringViewModel(
+            autoSimulateInitialTransfer = false,
+            coroutineScope = CoroutineScope(Dispatchers.Unconfined),
+            photoStorage = fakeStorage,
+        )
+        assertEquals("Studio_Portrait_S01", recordedSessionName)
+
         viewModel.onIntent(TetheringIntent.UpdateSessionName("Wedding_Outdoor_02"))
         assertEquals("Wedding_Outdoor_02", viewModel.uiState.value.sessionName)
+        assertEquals("Wedding_Outdoor_02", recordedSessionName)
 
         viewModel.onIntent(TetheringIntent.SetRatingFilter(4))
         assertTrue(viewModel.uiState.value.visibleItems.all { it.rating >= 4 })

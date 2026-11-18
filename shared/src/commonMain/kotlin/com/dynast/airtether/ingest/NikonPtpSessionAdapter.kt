@@ -14,6 +14,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,6 +23,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
@@ -33,6 +35,7 @@ class NikonPtpSessionAdapter(
     private val sessionManager: NikonSessionManager,
     private val photoStorage: PhotoStorage,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
+    private val eventPollingIntervalMs: Long = 350L,
 ) : PtpSessionManager {
 
     private val _isConnected = MutableStateFlow(false)
@@ -45,6 +48,7 @@ class NikonPtpSessionAdapter(
     val ingestionEvents: SharedFlow<IngestionEvent> = _ingestionEvents.asSharedFlow()
 
     private var eventJob: Job? = null
+    private var eventPollingJob: Job? = null
 
     init {
         scope.launch {
@@ -53,10 +57,12 @@ class NikonPtpSessionAdapter(
                     is NikonSessionState.Connected -> {
                         _isConnected.value = true
                         _isLiveViewActive.value = state.isLiveViewActive
+                        startEventPollingIfNeeded()
                     }
                     NikonSessionState.Disconnected, is NikonSessionState.Error -> {
                         _isConnected.value = false
                         _isLiveViewActive.value = false
+                        stopEventPolling()
                     }
                     NikonSessionState.Connecting -> Unit
                 }
@@ -69,12 +75,29 @@ class NikonPtpSessionAdapter(
         }
     }
 
+    private fun startEventPollingIfNeeded() {
+        if (eventPollingIntervalMs <= 0L) return
+        if (eventPollingJob?.isActive == true) return
+        eventPollingJob = scope.launch {
+            while (isActive && _isConnected.value) {
+                runCatching { sessionManager.pollNikonEvents() }
+                delay(eventPollingIntervalMs)
+            }
+        }
+    }
+
+    private fun stopEventPolling() {
+        eventPollingJob?.cancel()
+        eventPollingJob = null
+    }
+
     override suspend fun openSession(): Result<Unit> = runCatching {
         val opened = sessionManager.openSession()
         if (!opened) error("Failed to open Nikon PTP session")
     }
 
     override suspend fun closeSession() {
+        stopEventPolling()
         sessionManager.closeSession()
     }
 
@@ -102,6 +125,7 @@ class NikonPtpSessionAdapter(
         if (!result.isSuccess) {
             error("Shutter trigger failed: 0x${result.response.responseCode.toString(16)}")
         }
+        runCatching { sessionManager.pollNikonEvents() }
     }
 
     suspend fun ingestObjectHandle(objectHandle: UInt) {

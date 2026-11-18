@@ -21,13 +21,21 @@ private fun resolveIosDocumentsRoot(): String {
 }
 
 class IosPhotoStorage(
-    private val sessionName: String = "AirTether",
+    private var sessionName: String = "AirTether",
 ) : PhotoStorage {
 
-    private val baseDir: Path by lazy {
-        val root = resolveIosDocumentsRoot()
-        Path("$root/AirTether/$sessionName").also {
-            SystemFileSystem.createDirectories(it)
+    private val baseDir: Path
+        get() {
+            val root = resolveIosDocumentsRoot()
+            return Path("$root/AirTether/$sessionName").also {
+                SystemFileSystem.createDirectories(it)
+            }
+        }
+
+    override fun updateSessionName(sessionName: String) {
+        val sanitized = sessionName.trim().replace('/', '_').replace('\\', '_')
+        if (sanitized.isNotEmpty()) {
+            this.sessionName = sanitized
         }
     }
 

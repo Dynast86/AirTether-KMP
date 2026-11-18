@@ -7,8 +7,16 @@ import java.io.RandomAccessFile
 import java.util.concurrent.ConcurrentHashMap
 
 class JvmPhotoStorage(
-    private val sessionDir: File,
+    @Volatile private var sessionDir: File,
+    private val rootDir: File = sessionDir.parentFile ?: File("."),
 ) : PhotoStorage {
+
+    override fun updateSessionName(sessionName: String) {
+        val sanitized = sessionName.trim().replace('/', '_').replace('\\', '_')
+        if (sanitized.isNotEmpty()) {
+            sessionDir = File(rootDir, sanitized).apply { mkdirs() }
+        }
+    }
 
     private data class PendingEntry(
         val tempFile: File,

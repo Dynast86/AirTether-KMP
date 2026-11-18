@@ -88,6 +88,7 @@ class TetheringViewModel(
     private var sequenceCounter = 1048
 
     init {
+        photoStorage?.updateSessionName(_uiState.value.sessionName)
         restorePersistedItems()
         observeIngestionPipeline()
         observeExternalIngestService()
@@ -110,6 +111,7 @@ class TetheringViewModel(
             is TetheringIntent.UpdateSessionName -> {
                 val trimmed = intent.sessionName.trim()
                 if (trimmed.isNotEmpty()) {
+                    photoStorage?.updateSessionName(trimmed)
                     _uiState.update { it.copy(sessionName = trimmed) }
                 }
             }

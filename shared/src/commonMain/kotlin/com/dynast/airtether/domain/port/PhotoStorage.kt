@@ -7,6 +7,7 @@ package com.dynast.airtether.domain.port
  * - iOS: App sandbox / Photos library export
  */
 interface PhotoStorage {
+    fun updateSessionName(sessionName: String) {}
     suspend fun createPendingFile(fileName: String, mimeType: String): String
     suspend fun writeChunk(pendingHandle: String, bytes: ByteArray, offset: Long)
     suspend fun commitPendingFile(pendingHandle: String): String
